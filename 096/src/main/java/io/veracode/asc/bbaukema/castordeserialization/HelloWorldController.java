@@ -115,12 +115,14 @@ public class HelloWorldController {
         mappingString += "name=\"io.veracode.asc.bbaukema.castordeserialization.Allowed\">";
         mappingString += "<map-to xml=\"io.veracode.asc.bbaukema.castordeserialization.Allowed\"/>";
         mappingString += "</class></mapping>";
+        Class clazz = getClass();
         Mapping mapping = new Mapping(new ClassLoader() {
             private int maxInstantiations = 10;
 
             private final String[] allowedClasses = new String[] {
                     XMLMappingLoader.class.getCanonicalName(),
-                    Allowed.class.getCanonicalName()
+                    Allowed.class.getCanonicalName(),
+                    String.class.getCanonicalName()
             };
 
             @Override
@@ -136,7 +138,7 @@ public class HelloWorldController {
                 }
 
                 System.out.println("Castor XML ClassLoader: Loading " + name);
-                return super.loadClass(name);
+                return clazz.getClassLoader().loadClass(name);
             }
         });
         InputSource inputSource = new InputSource( new StringReader( mappingString ) );
