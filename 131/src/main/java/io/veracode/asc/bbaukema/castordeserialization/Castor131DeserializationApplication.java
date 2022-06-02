@@ -7,7 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class Castor131DeserializationApplication {
 
     public static void main(String[] args) {
+
         SpringApplication.run(Castor131DeserializationApplication.class, args);
+        System.out.println("Running on http://localhost:8080/");
     }
 
 }
