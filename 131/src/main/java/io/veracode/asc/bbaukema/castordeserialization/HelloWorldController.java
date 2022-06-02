@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.URLEncoder;
+import java.util.Arrays;
 import java.util.Base64;
 
 @RestController
@@ -62,12 +63,18 @@ public class HelloWorldController {
         stringWriter.flush();
         byte[] encodedDangerousXml = Base64.getEncoder().encode(dangerousXml.getBytes());
 
-        return "<a href='/unmarshal?input=" +
+        return "<br><a href='/unmarshal?input=" +
                 URLEncoder.encode(new String(encodedAllowedXml)) +
-                "'>Unmarshal Allowed XML</a><br>" +
-                "<a href='/unmarshal?input=" +
+                "'>Unmarshal Allowed XML</a>" +
+                "<br><a href='/unmarshal?input=" +
                 URLEncoder.encode(new String(encodedDangerousXml)) +
-                "'>Unmarshal Dangerous XML</a>";
+                "'>Unmarshal Dangerous XML</a>" +
+                "<br><a href='/unmarshal-safe?input=" +
+                URLEncoder.encode(new String(encodedAllowedXml)) +
+                "'>Safely Unmarshal Allowed XML</a>"+
+                "<br><a href='/unmarshal-safe?input=" +
+                URLEncoder.encode(new String(encodedDangerousXml)) +
+                "'>Safely Unmarshal Dangerous XML</a>";
     }
 
     @GetMapping("/unmarshal")
@@ -75,6 +82,55 @@ public class HelloWorldController {
         String xml = new String(Base64.getDecoder().decode(input));
 
         Unmarshaller unmarshaller = new Unmarshaller();
+        Object unmarshalled = unmarshaller.unmarshal(new StringReader(xml));
+
+        return "Unmarshalled: " + unmarshalled.getClass().toGenericString();
+    }
+
+    @GetMapping("/unmarshal-safe")
+    public String unmarshalSafe(@RequestParam(name = "input") String input) throws MarshalException, ValidationException, IOException, MappingException {
+        String xml = new String(Base64.getDecoder().decode(input));
+
+        // Mapping of Allowed, but *not* of Dangerous.
+        String mappingString = "<?xml version=\"1.0\"?>";
+        mappingString += "<!DOCTYPE mapping PUBLIC \"-//EXOLAB/Castor Mapping DTD Version 1.0//EN\"\n";
+        mappingString += "                          \"http://castor.org/mapping.dtd\">";
+        mappingString += "<mapping>";
+        mappingString += "<class ";
+        mappingString += "name=\"io.veracode.asc.bbaukema.castordeserialization.Allowed\">";
+        mappingString += "<map-to xml=\"io.veracode.asc.bbaukema.castordeserialization.Allowed\"/>";
+        mappingString += "</class></mapping>";
+        Class clazz = getClass();
+        Mapping mapping = new Mapping(new ClassLoader() {
+            private int maxInstantiations = 10;
+
+            private final String[] allowedClasses = new String[] {
+                    XMLMappingLoader.class.getCanonicalName(),
+                    Allowed.class.getCanonicalName(),
+                    String.class.getCanonicalName()
+            };
+
+            @Override
+            public Class<?> loadClass(String name) throws ClassNotFoundException {
+                if (maxInstantiations-- < 0) {
+                    System.out.println("Castor XML ClassLoader: Maximum number of instantiations reached");
+                    throw new ClassNotFoundException("Maximum number of instantiations reached");
+                }
+
+                if (!Arrays.asList(allowedClasses).contains(name)) {
+                    System.out.println("Castor XML ClassLoader: Not allowed to create class of name: " + name);
+                    throw new ClassNotFoundException("Not allowed to create class of name: " + name);
+                }
+
+                System.out.println("Castor XML ClassLoader: Loading " + name);
+                return clazz.getClassLoader().loadClass(name);
+            }
+        });
+        InputSource inputSource = new InputSource( new StringReader( mappingString ) );
+        mapping.loadMapping(inputSource);
+
+        Unmarshaller unmarshaller = new Unmarshaller();
+        unmarshaller.setMapping(mapping);
         Object unmarshalled = unmarshaller.unmarshal(new StringReader(xml));
 
         return "Unmarshalled: " + unmarshalled.getClass().toGenericString();
